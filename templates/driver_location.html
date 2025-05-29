@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Location</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
+
+    <style>
+        #map { height: 600px; width: 100%; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="next-stop"></div>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const map = L.map('map').setView([27.59, 85.53], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            let marker = null;
+            let routeCoordinates = [];
+            let currentCoordinateIndex = 0;
+            let socket;
+            let busNumber;
+            const accessToken = localStorage.getItem('accessToken');
+
+            async function init() {
+                try {
+                    const response = await axios.get('/protected', { headers: { Authorization: `Bearer ${accessToken}` } });
+                    busNumber = response.data.bus_number;
+                    await fetchRoute();
+                    startSocket();
+                    startLocationUpdates();
+                } catch (err) {
+                    console.error('Initialization error:', err);
+                }
+            }
+
+            async function fetchRoute() {
+                const response = await axios.get(`/route_path/route_1`, { headers: { Authorization: `Bearer ${accessToken}` } });
+                routeCoordinates = response.data.route_coordinates.map(coord => [coord.lat, coord.lon]);
+            }
+
+            function startSocket() {
+                socket = new WebSocket(`ws://${window.location.host}/ws`);
+                socket.onopen = () => console.log('WebSocket connected');
+                socket.onclose = () => console.log('WebSocket disconnected');
+                socket.onerror = (err) => console.error('WebSocket error:', err);
+            }
+
+            function startLocationUpdates() {
+                if (routeCoordinates.length > 0) {
+                    setInterval(sendLocationUpdate, 1000);
+                } else {
+                    alert('No route coordinates available.');
+                }
+            }
+
+            function sendLocationUpdate() {
+                if (currentCoordinateIndex < routeCoordinates.length) {
+                    const [lat, lon] = routeCoordinates[currentCoordinateIndex];
+                    socket.send(JSON.stringify({ bus_number: busNumber, lat: lat, lon: lon }));
+                    updateMapLocation(lat, lon);
+                    currentCoordinateIndex++;
+                } else {
+                    alert('Route completed.');
+                }
+            }
+
+            function updateMapLocation(lat, lon) {
+                if (marker) {
+                    marker.setLatLng([lat, lon]);
+                } else {
+                    marker = L.marker([lat, lon]).addTo(map);
+                }
+                map.setView([lat, lon]);
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>

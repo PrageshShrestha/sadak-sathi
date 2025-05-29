@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Bus Tracker</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/polyline/1.1.1/polyline.min.js"></script>
+
+    <style>
+        #map { height: 600px; width: 100%; }
+        #location-status { margin-top: 10px; }
+        #location-button, #from-button, #to-button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s, transform 0.2s;
+            z-index: 400;
+        }
+        #location-button:hover, #from-button:hover, #to-button:hover {
+            background-color: #3e8e41;
+            transform: scale(1.05);
+        }
+        #location-button:active, #from-button:active, #to-button:active {
+            transform: scale(0.95);
+        }
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        #controls { position: absolute; top: 10px; left: 10px; z-index: 400; background-color: white; padding: 10px; border-radius: 5px; }
+        .location-set { background-color: #007bff; }
+        .location-select-mode{ background-color: yellow;}
+        .remove-button{padding: 5px; background-color: red; color: white; border-radius: 5px; border: none; cursor:pointer;}
+    </style>
+</head>
+<body>
+    <h2>Live Bus Tracker</h2>
+    <div id="map"></div>
+    <div id="location-status"></div>
+    <div id="controls">
+        <div>
+            <label for="from-select">From:</label>
+            <select id="from-select">
+                <option value="">Select Location</option>
+                <option value="myLocation">My Location</option>
+                <option value="27.6828,85.3283">Kathmandu</option>
+                <option value="27.5900,85.5300">Panauti</option>
+                <option value="27.7172,85.3240">Bhaktapur</option>
+            </select>
+            <button id="from-button">Set From</button>
+            <button id="remove-from" class="remove-button" style="display: none;">x</button>
+        </div>
+        <div>
+            <label for="to-select">To:</label>
+            <select id="to-select">
+                <option value="">Select Location</option>
+                <option value="27.6828,85.3283">Kathmandu</option>
+                <option value="27.5900,85.5300">Panauti</option>
+                <option value="27.7172,85.3240">Bhaktapur</option>
+            </select>
+            <button id="to-button">Set To</button>
+            <button id="remove-to" class="remove-button" style="display: none;">x</button>
+        </div>
+        <button id="location-button" class="pulse">Get My Location</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const map = L.map('map').setView([27.59, 85.53], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+            let routePathLayer = null;
+            let busMarkers = {};
+            let locationAccessed = false;
+            let fromMarker = null;
+            let toMarker = null;
+            let myLocationMarker = null;
+            let setFromMode = false;
+            let setToMode = false;
+            let myLocationCoords = null;
+            let osrmRouteLayer = null;
+
+            async function fetchRoutePath() {
+                try {
+                    const response = await axios.get('/route_path/route_1');
+                    const data = response.data;
+                    if (routePathLayer) {
+                        map.removeLayer(routePathLayer);
+                    }
+                    if (data.route_coordinates && data.route_coordinates.length > 0) {
+                        const latlngs = data.route_coordinates.map(coord => [coord.lat, coord.lon]);
+                        routePathLayer = L.polyline(latlngs, { color: 'blue' }).addTo(map);
+                    }
+
+                    data.bus_locations.forEach(bus => {
+                        if (busMarkers[bus.bus_number]) {
+                            busMarkers[bus.bus_number].setLatLng([bus.current_lat, bus.current_lon]);
+                        } else {
+                            busMarkers[bus.bus_number] = L.marker([bus.current_lat, bus.current_lon]).addTo(map);
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error fetching route path:', error);
+                }
+            }
+
+            function decodePolyline(encoded) {
+                let index = 0, len = encoded.length;
+                let lat = 0, lng = 0;
+                let coordinates = [];
+
+                while (index < len) {
+                    let b, shift = 0, result = 0;
+                    do {
+                        b = encoded.charCodeAt(index++) - 63;
+                        result |= (b & 0x1f) << shift;
+                        shift += 5;
+                    } while (b >= 0x20);
+                    let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+                    lat += dlat;
+
+                    shift = 0;
+                    result = 0;
+                    do {
+                        b = encoded.charCodeAt(index++) - 63;
+                        result |= (b & 0x1f) << shift;
+                        shift += 5;
+                    } while (b >= 0x20);
+                    let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+                    lng += dlng;
+
+                    coordinates.push([lat / 1e5, lng / 1e5]);
+                }
+                return coordinates;
+            }
+
+
+		async function fetchOsrmRoute(fromLat, fromLon, toLat, toLon) {
+    console.log("calc");
+    try {
+        const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${fromLon},${fromLat};${toLon},${toLat}?overview=full&geometries=polyline`;
+        const response = await fetch(osrmUrl);
+        const routeData = await response.json();
+        console.log("calculation started");
+
+        if (!routeData.routes || routeData.routes.length === 0) {
+            console.error('No route found:', routeData);
+            return;
+        }
+
+        const encodedPolyline = routeData.routes[0].geometry;
+        if (!encodedPolyline) {
+            console.error('Invalid route data structure:', routeData.routes[0]);
+            return;
+        }
+
+        const coordinates = decodePolyline(encodedPolyline).map(coord => [coord[0], coord[1]]); // Fix here to make sure the order is [lat, lon]
+        console.log(coordinates);
+
+        // Add the polyline to the map
+        L.polyline(coordinates, { color: 'red' }).addTo(map);
+
+    } catch (error) {
+        console.error('Error fetching OSRM route:', error);
+    }
+}
+
+            function getLocation() {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(showPosition, showError);
+                } else {
+                    document.getElementById('location-status').textContent = 'Geolocation is not supported by this browser.';
+                }
+            }
+
+            function showPosition(position) {
+                locationAccessed = true;
+                document.getElementById('location-status').textContent = `Location accessed: Latitude ${position.coords.latitude}, Longitude ${position.coords.longitude}`;
+                myLocationCoords = [position.coords.latitude, position.coords.longitude];
+                if(myLocationMarker){
+                    map.removeLayer(myLocationMarker);
+                }
+                myLocationMarker = L.marker(myLocationCoords).addTo(map).bindPopup("Your Location").openPopup();
+                document.getElementById('location-button').classList.add('location-set');
+            }
+
+            function showError(error) {
+                switch (error.code) {
+                    case error.PERMISSION_DENIED:
+                        document.getElementById('location-status').textContent = 'User denied the request for Geolocation.';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        document.getElementById('location-status').textContent = 'Location information is unavailable.';
+                        break;
+                    case error.TIMEOUT:
+                        document.getElementById('location-status').textContent = 'The request to get user location timed out.';
+                        break;
+                    case error.UNKNOWN_ERROR:
+                        document.getElementById('location-status').textContent = 'An unknown error occurred.';
+                        break;
+                }
+            }
+
+            function setFromLocation(lat, lon) {
+                if (fromMarker) {
+                    map.removeLayer(fromMarker);
+                }
+                fromMarker = L.marker([lat, lon]).addTo(map).bindPopup("From Location").openPopup();
+                document.getElementById('from-button').classList.add('location-set');
+                document.getElementById('remove-from').style.display = 'inline-block';
+                setFromMode = false;
+                document.getElementById('from-button').classList.remove('location-select-mode');
+                updateOsrmRoute();
+            }
+
+            function setToLocation(lat, lon) {
+                if (toMarker) {
+                    map.removeLayer(toMarker);
+                }
+                toMarker = L.marker([lat, lon]).addTo(map).bindPopup("To Location").openPopup();
+                document.getElementById('to-button').classList.add('location-set');
+                document.getElementById('remove-to').style.display = 'inline-block';
+                setToMode = false;
+                document.getElementById('to-button').classList.remove('location-select-mode');
+                updateOsrmRoute();
+            }
+
+            function updateOsrmRoute() {
+                if (fromMarker && toMarker) {
+                    fetchOsrmRoute(fromMarker.getLatLng().lat, fromMarker.getLatLng().lng, toMarker.getLatLng().lat, toMarker.getLatLng().lng);
+                }
+            }
+
+            map.on('click', function(e) {
+                if (setFromMode) {
+                    setFromLocation(e.latlng.lat, e.latlng.lng);
+                    document.getElementById('from-select').value = `${e.latlng.lat},${e.latlng.lng}`;
+                } else if (setToMode) {
+                    setToLocation(e.latlng.lat, e.latlng.lng);
+                    document.getElementById('to-select').value = `${e.latlng.lat},${e.latlng.lng}`;
+                }
+            });
+
+            document.getElementById('from-button').addEventListener('click', function() {
+                setFromMode = true;
+                document.getElementById('from-button').classList.add('location-select-mode');
+            });
+
+            document.getElementById('to-button').addEventListener('click', function() {
+                setToMode = true;
+                document.getElementById('to-button').classList.add('location-select-mode');
+            });
+
+            document.getElementById('from-select').addEventListener('change', function() {
+                updateFromMapPoint();
+            });
+
+            document.getElementById('to-select').addEventListener('change', function() {
+                updateToMapPoint();
+            });
+
+            function updateFromMapPoint() {
+                const selectedValue = document.getElementById('from-select').value;
+                if (selectedValue === 'myLocation' && myLocationCoords) {
+                    setFromLocation(myLocationCoords[0], myLocationCoords[1]);
+                } else if (selectedValue && selectedValue !== 'myLocation') {
+                    const [lat, lon] = selectedValue.split(',');
+                    setFromLocation(parseFloat(lat), parseFloat(lon));
+                }
+            }
+
+            function updateToMapPoint() {
+                const selectedValue = document.getElementById('to-select').value;
+                if (selectedValue) {
+                    const [lat, lon] = selectedValue.split(',');
+                    setToLocation(parseFloat(lat), parseFloat(lon));
+                }
+            }
+
+            document.getElementById('remove-from').addEventListener('click', function() {
+                if(fromMarker){
+                    map.removeLayer(fromMarker);
+                    fromMarker = null;
+                }
+                document.getElementById('from-button').classList.remove('location-set');
+                document.getElementById('remove-from').style.display = 'none';
+                updateOsrmRoute();
+            });
+
+            document.getElementById('remove-to').addEventListener('click', function() {
+                if(toMarker){
+                    map.removeLayer(toMarker);
+                    toMarker = null;
+                }
+                document.getElementById('to-button').classList.remove('location-set');
+                document.getElementById('remove-to').style.display = 'none';
+                updateOsrmRoute();
+            });
+
+            document.getElementById('location-button').addEventListener('click', getLocation);
+
+            setInterval(fetchRoutePath, 5000);
+            fetchRoutePath();
+        });
+    </script>
+</body>
+</html>

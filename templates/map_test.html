@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OSRM Shortest Path</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        #map { height: 500px; }
+        #coordinates { margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <button id="calculate">Calculate Shortest Path</button>
+    <div id="coordinates"></div>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        let map = L.map('map').setView([0, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        let points = [];
+        let markers = [];
+        let polyline;
+        let coordinatesDiv = document.getElementById('coordinates');
+
+        map.on('click', function(e) {
+            if (points.length < 2) {
+                points.push(e.latlng);
+                let marker = L.marker(e.latlng).addTo(map);
+                markers.push(marker);
+                updateCoordinatesDisplay();
+            } else {
+                alert("Only two points allowed.");
+            }
+        });
+
+        document.getElementById('calculate').addEventListener('click', function() {
+            if (points.length === 2) {
+                if(polyline){
+                    map.removeLayer(polyline);
+                }
+                let url = `http://router.project-osrm.org/route/v1/driving/${points[0].lng},${points[0].lat};${points[1].lng},${points[1].lat}?overview=full&geometries=geojson`;
+
+                fetch(url)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.routes && data.routes.length > 0) {
+                            let route = L.geoJSON(data.routes[0].geometry).addTo(map);
+                            polyline = route;
+                        } else {
+                            alert("Could not find a route.");
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert("An error occurred while calculating the route.");
+                    });
+            } else {
+                alert("Please select two points on the map.");
+            }
+        });
+        function updateCoordinatesDisplay() {
+            let display = "Coordinates: ";
+            points.forEach((point, index) => {
+                display += `Point ${index + 1}: (${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}) `;
+            });
+            coordinatesDiv.textContent = display;
+        }
+
+    </script>
+</body>
+</html>

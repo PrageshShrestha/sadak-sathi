@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Add Route</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f7f8;
+      color: #333;
+      padding: 40px;
+      max-width: 600px;
+      margin: auto;
+    }
+    h2 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    form {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    input[type="text"], textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ccd0d5;
+      border-radius: 4px;
+      box-sizing: border-box;
+      margin-bottom: 20px;
+      font-size: 14px;
+      font-family: monospace;
+      background: #f9f9f9;
+      resize: vertical;
+    }
+    button {
+      background-color: #2980b9;
+      color: white;
+      padding: 14px 24px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      width: 100%;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #3498db;
+    }
+    .message {
+      margin-top: 20px;
+      font-weight: 600;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Add Route</h2>
+  <form id="routeForm">
+    <label for="routeName">Route Name:</label>
+    <input type="text" id="routeName" name="routeName" required />
+
+    <label for="coordinates">Coordinates (Line shape):</label>
+    [(12.971598, 77.594566),  (12.972698, 77.595566),(12.973798, 77.596566),(12.974898, 77.597566),(12.975998, 77.598566),(12.977098, 77.599566),]
+    <textarea
+      id="coordinates"
+      name="coordinates"
+      rows="4"
+      placeholder="e.g. [(lat,lng),(next_lat,lng),....]"
+      required
+    ></textarea>
+
+    <label for="stops">Stops (Python list style):</label>
+     [("Stop 1: City Center", 12.971598, 77.594566, 2),("Stop 2: Library", 12.972698, 77.595566, 3),("Stop 3: Museum", 12.973798, 77.596566, 4),("Stop 4: Park", 12.974898, 77.597566, 2),("Stop 5: University", 12.975998, 77.598566, 3),("Stop 6: Stadium", 12.977098, 77.599566, 5),]    <textarea
+      id="stops"
+      name="stops"
+      rows="2"
+      placeholder='e.g.[(name , lat,lng,stop_time)....]'
+      required
+    ></textarea>
+    <label for="name">Authorized Name:</label>
+    <input type="text" id="name" name="name" required />
+    <label for="password">Password</label>
+    <input type="text" id="password" name="password" required />
+
+
+
+
+
+    <button type="submit">Add Route</button>
+  </form>
+
+  <div class="message" id="message"></div>
+
+  <script>
+    document.getElementById('routeForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const routeName = document.getElementById('routeName').value.trim();
+      const coordinates = document.getElementById('coordinates').value.trim();
+      const stops = document.getElementById('stops').value.trim();
+      const messageEl = document.getElementById('message');
+      const name = document.getElementById("name").value;
+      const password = document.getElementById("password").value;
+      // Simple validation
+      if (!routeName || !coordinates || !stops) {
+        messageEl.textContent = 'Please fill all fields.';
+        messageEl.style.color = 'red';
+        return;
+      }
+
+      try {
+        // Send POST request to FastAPI server
+        const response = await fetch('/add-route', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            routeName,
+            coordinates,
+            stops,
+            name
+,password          }),
+        });
+
+        if (response.ok) {
+          var data = await response.json();
+
+          messageEl.textContent = 'Route added successfully!'+ data.details;
+          messageEl.style.color = 'green';
+          e.target.reset();
+        } else {
+          const errorData = await response.json();
+          messageEl.textContent = 'Error: ' + (errorData.details || 'Failed to add route.');
+          messageEl.style.color = 'red';
+        }
+      } catch (err) {
+        messageEl.textContent = 'Network error: ' + err.message;
+        messageEl.style.color = 'red';
+      }
+    });
+  </script>
+
+</body>
+</html>

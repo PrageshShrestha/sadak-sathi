@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+    <style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid black; padding: 8px; text-align: center; }
+        input { width: 100px; }
+    </style>
+</head>
+<body>
+    <h1>Admin Dashboard</h1>
+
+    <h2>Users</h2>
+    <table>
+        <tr><th>ID</th><th>Name</th><th>Password</th><th>Authorized</th><th>Update</th></tr>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.id }}</td>
+            <td><input id="user-{{ user.id }}-name" value="{{ user.name }}"></td>
+            <td><input id="user-{{ user.id }}-password" value="{{ user.password }}"></td>
+            <td><input id="user-{{ user.id }}-authorized" value="{{ user.authorized }}"></td>
+            <td><button onclick="updateUser({{ user.id }})">Update</button></td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h2>Routes</h2>
+    <table>
+        <tr><th>ID</th><th>Route Name</th><th>Coordinates</th><th>Stops</th><th>Update</th></tr>
+        {% for route in routes %}
+        <tr>
+            <td>{{ route.route_id }}</td>
+            <td><input id="route-{{ route.route_id }}-route_name" value="{{ route.route_name }}"></td>
+            <td><input id="route-{{ route.route_id }}-coordinates" value="{{ route.coordinates }}"></td>
+            <td><input id="route-{{ route.route_id }}-stops" value="{{ route.stops }}"></td>
+            <td><button onclick="updateRoute({{ route.route_id }})">Update</button></td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h2>Bus Info</h2>
+    <table>
+        <tr><th>Bus Number</th><th>Lat</th><th>Lon</th><th>Speed</th><th>Next Stop</th><th>ETA</th><th>Direction</th><th>Update</th></tr>
+        {% for bus in buses %}
+        <tr>
+            <td>{{ bus.bus_number }}</td>
+            <td><input id="bus-{{ bus.bus_number }}-lat" value="{{ bus.lat }}"></td>
+            <td><input id="bus-{{ bus.bus_number }}-lon" value="{{ bus.lon }}"></td>
+            <td><input id="bus-{{ bus.bus_number }}-speed" value="{{ bus.speed }}"></td>
+            <td><input id="bus-{{ bus.bus_number }}-next_stop" value="{{ bus.next_stop }}"></td>
+            <td><input id="bus-{{ bus.bus_number }}-eta" value="{{ bus.eta }}"></td>
+            <td><input id="bus-{{ bus.bus_number }}-route_direction" value="{{ bus.route_direction }}"></td>
+            <td><button onclick="updateBus('{{ bus.bus_number }}')">Update</button></td>
+        </tr>
+        {% endfor %}
+    </table>
+
+<script>
+async function updateUser(id) {
+    for (const field of ["name", "password", "authorized"]) {
+        const value = document.getElementById(`user-${id}-${field}`).value;
+        await fetch("/update-user", {
+            method: "POST",
+            body: new URLSearchParams({ user_id: id, field, value })
+        });
+    }
+    alert("User updated!");
+}
+
+async function updateRoute(id) {
+    for (const field of ["route_name", "coordinates", "stops"]) {
+        const value = document.getElementById(`route-${id}-${field}`).value;
+        await fetch("/update-route", {
+            method: "POST",
+            body: new URLSearchParams({ route_id: id, field, value })
+        });
+    }
+    alert("Route updated!");
+}
+
+async function updateBus(busNumber) {
+    for (const field of ["lat", "lon", "speed", "next_stop", "eta", "route_direction"]) {
+        const value = document.getElementById(`bus-${busNumber}-${field}`).value;
+        await fetch("/update-bus", {
+            method: "POST",
+            body: new URLSearchParams({ bus_number: busNumber, field, value })
+        });
+    }
+    alert("Bus updated!");
+}
+</script>
+</body>
+</html>
