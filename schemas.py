@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 
-<<<<<<< HEAD
+
 
 class UserBase(BaseModel):
     curr_lat:float 
@@ -24,7 +24,6 @@ class bus_add(BaseModel):
     password: str 
     name:str 
     password_name:str
-=======
 class UserCreate(BaseModel):
     username: str
     bus_number: str
@@ -55,4 +54,3 @@ class RouteDataSubmit(BaseModel):
     final_lon: float
     final_destination: str
     timestamp: datetime
->>>>>>> 818a14e1226f981c3d9864e53ac84e04fd6561e1
