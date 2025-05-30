@@ -1,5 +1,4 @@
 # models.py
-<<<<<<< HEAD
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, Time, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime,time
@@ -25,53 +24,12 @@ class RouteInfo(Base):
     stops = Column(String , default = [])#[(name , lat,lng,stop_time)....]
     added_by = Column(String)
     added_at = Column(Time, default=lambda:datetime.now().time())
-=======
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, DateTime, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from base import Base  # Import Base from base.py
 
-class User(Base):
-    __tablename__ = "users"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    bus_number = Column(String, unique=True, index=True)
-    route_id = Column(String)
-    password_hash = Column(String)
-    status = Column(Boolean, default=True)
-    
-    bus_info = relationship("BusLocation", back_populates="bus", uselist=False)
-    def verify_password(self, password):
-        
-        return self.password_hash == password
-class BusLocation(Base):
-    __tablename__ = "bus_locations"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    bus_number = Column(String, ForeignKey("users.bus_number"), unique=True, nullable=False)
-    current_lat = Column(Float, nullable=False)
-    current_lon = Column(Float, nullable=False)
-    last_5_sec_locations = Column(JSON, default=[])
-    last_15_sec_location = Column(JSON, nullable=True)
-    last_25_sec_location = Column(JSON, nullable=True)
-    last_updated = Column(DateTime, default=datetime.utcnow)
-    
-    bus = relationship("User", back_populates="bus_info")
 
-class RouteInfo(Base):
-    __tablename__ = "route_info"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    route_id = Column(String, unique=True, nullable=False)
-    route_name = Column(String, nullable=False)
-    coordinates = Column(JSON, default=[])
->>>>>>> 818a14e1226f981c3d9864e53ac84e04fd6561e1
-    
-    def add_coordinates(self, new_coords):
-        self.coordinates.extend(new_coords)
-        
-<<<<<<< HEAD
 class Bus_route(Base):
     __tablename__ = "bus_route"
     bus_number = Column(String, primary_key=True, nullable=False)
@@ -119,10 +77,9 @@ class Bus_info(Base):
         self.eta = eta
         self.next_stop = next_stop
         self.last_updated = datetime.now().time()
-=======
+
         
         
         
         
->>>>>>> 818a14e1226f981c3d9864e53ac84e04fd6561e1
 
