@@ -142,6 +142,56 @@ def haversine(lat1, lon1, lat2, lon2):
 
     distance = R * c  # in meters
     return distance
+@app.post("/shortest_route")
+async def get_shortest_distance(request:Request , user_data:Shortest_route , db:AsyncSession = Depends(get_session)):
+    user_loc = [user_data["user_lat"] , user_data["user_lon"]]
+    route_data = await db.execute(select(RouteInfo.stops).filter(route_id = user_data["route_id"]))
+    list_1 = []
+    
+    route_data = route_data.scalars().first()
+    coor_data = await db.execute(select(RouteInfo.coordinates).filter(route_id = user_data["route_id"]))
+    coor_data = list(coor_data.scalars().first())
+    nearest_one = []
+    for (lat,lon) in coor_data:
+        dist_one = haversine(user_loc[0] , user_loc[1] , lat,lon)
+        nearest_one.append((lat,lon , dist_one))
+    nearest_one = sorted(nearest_one , lambda x:x[2],reversed = False)
+    nearest_one = nearest_one[0]
+
+    for (name , lat,lon,stop_time) in list(route_data):
+        dist = haversine(lat,lon,user_loc[0] , user_loc[1] )
+        list_1.append((name , dist , lat,lon))
+    list_1 = sorted(list_1 , lambda x:x[1] , reversed = False)
+    nearest_stop = str(list_1[0][0]) 
+    nearest_lat = list_1[0][2]
+    nearest_lon = list_1[0][3]
+    vehicle = int(user_data["vehicle"])
+    modes = {  ## 0-driving , 1-walking , 2-cycling # no bike service available for osrm
+        0:"driving",
+        1:"walking",
+        2:"cycling"
+    }
+    mode = modes[vehicle]
+    try:
+        url =f"http://router.project-osrm.org/route/v1/{mode}/{user_loc[0]},{user_loc[1]};{nearest_lon},{nearest_lat}?overview=full&geometries=geojson"
+        response = requests.get(url)
+        data = response.json()
+        route = data["routes"][0]["geometry"]["coordinates"]
+        distance = data["routes"][0]["distance"]
+        time_to_reach = data["routes"][0]["duration"]
+
+
+
+        url =f"http://router.project-osrm.org/route/v1/{mode}/{user_loc[0]},{user_loc[1]};{nearest_one[0]},{nearest_one[1]}?overview=full&geometries=geojson"
+        response = requests.get(url)
+        data = response.json()
+        route_1 = data["routes"][0]["geometry"]["coordinates"]
+        distance_1 = data["routes"][0]["distance"]
+        time_to_reach_1 = data["routes"][0]["duration"]
+        return {"nearest_stop":nearest_stop , "route":route , "distance":distance , "ttr":time_to_reach , "route_1":route_1 , "distance_1":distance_1 , "ttr1":time_to_reach_1}
+    except:
+        return {"details":"Sorry for the problem here . Seems like OpenStreet Routing api(osrm) not handshaking here!!! "}
+
 @app.get("/add_bus_page")
 async def add_bus_page(request:Request , db:AsyncSession = Depends(get_session)):
     print("add bus page")
@@ -184,23 +234,29 @@ async def add_bus(data:bus_add , db:AsyncSession = Depends(get_session)):
     except Exception as e:
         print(f"Error adding bus: {e}")
         return {"details": "Error adding bus, please check the input data"}
-@app.get("/")
+@app.post("/")
 async def home(request:Request , db:AsyncSession = Depends(get_session)):
     try:
         sel = await db.execute(text("SELECT * FROM user_authorized"))
         sel = sel.scalars().all()
         
     except Exception as e:
-        print(f"Error fetching users: {e}")
+        
         sel = []
-    print(sel)
+    
     if len(sel)==0:
     
         sel = User_authorized(name="Pragesh", password="12345678", authorized=True)
         db.add(sel)
         await db.commit()
-        print("new added")
-    return templates.TemplateResponse("index.html", {"request": request})
+        
+    data_routes = await db.execute(select(RouteInfo))
+    data_routes = data_routes.scalars().all()
+    route_data = []
+    for i in data_routes:
+
+        route_data.append((i.route_name , i.route_id , [name for (name,_,_,_) in list(i.stops)]))
+    return {"route_data": route_data}
 @app.get("/ask_location")
 def ask_location(request:Request):
     return templates.TemplateResponse("ask_location.html", {"request": request})
